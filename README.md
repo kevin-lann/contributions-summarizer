@@ -103,11 +103,25 @@ contrib-summary owner/repo --user github-login --max-prs 50
 contrib-summary owner/repo --user github-login --no-ai
 ```
 
-Gemini token usage is logged to stderr for each AI summary call:
+Gemini token usage is logged to stderr for each AI grouping and summary call:
 
 ```text
 Gemini token usage: model=gemini-2.5-flash prompt=1200 candidate=180 total=1380 cached=n/a thought=n/a
 ```
+
+After all AI calls finish, aggregate token usage and estimated cost are logged:
+
+```text
+Gemini token totals: model=gemini-2.5-flash calls=8 prompt=24000 candidate=4200 thought=0 total=28200 cached=0 missing_usage_calls=0 estimated_cost=$0.017700
+```
+
+Cost estimates use standard Vertex AI Gemini text pricing for supported models:
+
+- `gemini-2.5-flash`: $0.30 per 1M input tokens, $2.50 per 1M output tokens
+- `gemini-2.5-flash-lite`: $0.10 per 1M input tokens, $0.40 per 1M output tokens
+- `gemini-2.5-pro`: $1.25 per 1M input tokens, $10.00 per 1M output tokens for prompts up to 200K tokens
+
+The estimate uses prompt tokens as input and candidate plus thought tokens as output. It does not model cached-token discounts, batch pricing, nonstandard enterprise pricing, taxes, or `gemini-2.5-pro` long-context pricing above 200K tokens.
 
 When Markdown is written to stdout, token logs still go to stderr. Redirect report output with `--out` when you want a clean file.
 
@@ -134,7 +148,13 @@ JSON output is available for downstream tools.
 
 ## How Clustering Works
 
-The algorithm walks PRs in chronological order and compares each PR against existing clusters. A PR joins the cluster with the highest similarity score when that score is at least `--similarity-threshold`, which defaults to `0.45`. Otherwise, it starts a new cluster.
+By default, the tool uses a two-pass AI grouping flow. First, Gemini receives compact PR facts and assigns every PR to a narrow contribution theme such as `Authentication and session handling`, `AI chatbot and RAG assistant`, `Timetable generation`, or `Documentation updates`. Then Gemini summarizes each final theme.
+
+Gemini calls use structured JSON output with `response_mime_type="application/json"` and explicit response schemas. The grouping schema returns theme titles, PR numbers, and grouping signals. The summary schema returns a headline, summary, impact, and 2-3 resume-ready bullets.
+
+The grouping instructions tell Gemini to avoid broad buckets based only on shared repository roots, release timing, or generic words. It prefers coherent features, projects, and isolated improvements, with one-PR groups for standalone fixes, docs, releases, or unclear work.
+
+`--no-ai` switches to deterministic clustering. In that mode, the algorithm walks PRs in chronological order and compares each PR against existing clusters. A PR joins the cluster with the highest similarity score when that score is at least `--similarity-threshold`, which defaults to `0.45`. Otherwise, it starts a new cluster.
 
 Similarity combines four signals:
 

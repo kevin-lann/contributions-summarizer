@@ -14,7 +14,7 @@ from contributions_summarizer.gemini import (
     GeminiTextGenerator,
 )
 from contributions_summarizer.github_client import GitHubClient, GitHubConfig
-from contributions_summarizer.models import ClusterSummary, ContributionCluster
+from contributions_summarizer.models import ClusterSummary, ContributionCluster, PullRequest
 from contributions_summarizer.report import ReportContext, render_json, render_markdown
 
 
@@ -36,11 +36,12 @@ def main(argv: list[str] | None = None) -> int:
             include_open=args.include_open,
             max_prs=args.max_prs,
         )
-        clusters = cluster_pull_requests(
+        clusters, summaries = group_and_summarize(
             pull_requests,
+            no_ai=args.no_ai,
+            model=args.model,
             similarity_threshold=args.similarity_threshold,
         )
-        summaries = summarize(clusters, no_ai=args.no_ai, model=args.model)
         context = ReportContext(repo=args.repo, user=args.user, since=since, until=until)
         markdown = render_markdown(context, clusters, summaries)
         write_output(args.out, markdown)
@@ -72,8 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--similarity-threshold",
         type=float,
-        default=0.32,
-        help="Similarity threshold for deterministic clustering.",
+        default=0.45,
+        help="Similarity threshold for deterministic clustering in --no-ai mode.",
     )
     parser.add_argument(
         "--model",
@@ -88,15 +89,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def summarize(
-    clusters: list[ContributionCluster],
+def group_and_summarize(
+    pull_requests: list[PullRequest],
     no_ai: bool,
     model: str,
-) -> list[ClusterSummary]:
+    similarity_threshold: float,
+) -> tuple[list[ContributionCluster], list[ClusterSummary]]:
     if no_ai:
-        return []
+        clusters = cluster_pull_requests(
+            pull_requests,
+            similarity_threshold=similarity_threshold,
+        )
+        return clusters, []
     generator = GeminiTextGenerator(GeminiConfig.from_env(model=model))
-    return ContributionSummarizer(generator).summarize(clusters)
+    summarizer = ContributionSummarizer(generator)
+    clusters = summarizer.group_pull_requests(pull_requests)
+    summaries = summarizer.summarize(clusters)
+    generator.log_token_totals()
+    return clusters, summaries
 
 
 def parse_date(value: str | None, flag: str) -> date | None:

@@ -47,6 +47,10 @@ def render_markdown(
             ]
         )
         if summary:
+            if summary.resume_bullets:
+                lines.extend(["Resume bullets:", ""])
+                lines.extend(f"- {bullet.strip()}" for bullet in summary.resume_bullets)
+                lines.append("")
             lines.extend(
                 [
                     summary.summary.strip(),

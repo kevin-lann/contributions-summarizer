@@ -107,6 +107,7 @@ class ClusterSummary:
     headline: str
     summary: str
     impact: str
+    resume_bullets: tuple[str, ...] = field(default_factory=tuple)
 
 
 def parse_github_datetime(value: str) -> datetime:

@@ -16,6 +16,10 @@ def test_render_markdown_includes_summary_and_prs() -> None:
         headline="Auth improvements",
         summary="Improved login.",
         impact="Reduced sign-in failures.",
+        resume_bullets=(
+            "Built login callback support for the authentication flow.",
+            "Improved sign-in reliability by fixing session handling.",
+        ),
     )
 
     markdown = render_markdown(
@@ -26,6 +30,8 @@ def test_render_markdown_includes_summary_and_prs() -> None:
 
     assert "# Contribution Summary for `octocat`" in markdown
     assert "## Auth improvements" in markdown
+    assert "Resume bullets:" in markdown
+    assert "- Built login callback support" in markdown
     assert "#1 [Add login callback]" in markdown
 
 
