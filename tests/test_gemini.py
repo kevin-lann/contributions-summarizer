@@ -1,6 +1,7 @@
 from contributions_summarizer.gemini import (
     ContributionSummarizer,
     GEMINI_PRICING,
+    GeminiError,
     GeminiConfig,
     GROUPING_RESPONSE_SCHEMA,
     SUMMARY_RESPONSE_SCHEMA,
@@ -123,11 +124,34 @@ def test_gemini_config_reads_vertex_ai_environment(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "acme-prod")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-east4")
 
-    config = GeminiConfig.from_env(model="gemini-2.5-pro")
+    config = GeminiConfig.from_env(model="gemini-2.5-pro", provider="vertex-ai")
 
+    assert config.provider == "vertex-ai"
     assert config.project == "acme-prod"
     assert config.location == "us-east4"
     assert config.model == "gemini-2.5-pro"
+
+
+def test_gemini_config_reads_google_ai_environment(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "api-key")
+
+    config = GeminiConfig.from_env(model="gemini-2.5-flash", provider="google-ai")
+
+    assert config.provider == "google-ai"
+    assert config.api_key == "api-key"
+    assert config.project is None
+    assert config.model == "gemini-2.5-flash"
+
+
+def test_gemini_config_requires_provider_credentials(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    try:
+        GeminiConfig.from_env(provider="google-ai")
+    except GeminiError as exc:
+        assert "GEMINI_API_KEY" in str(exc)
+    else:
+        raise AssertionError("Expected missing GEMINI_API_KEY to fail.")
 
 
 def test_token_usage_reads_vertex_response_metadata() -> None:

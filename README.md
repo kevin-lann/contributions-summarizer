@@ -16,6 +16,8 @@ Set credentials in your shell:
 export GITHUB_TOKEN="github_pat_or_app_token"
 export GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
+# Only needed when using --ai-provider google-ai
+export GEMINI_API_KEY="gemini_api_key"
 ```
 
 You can also put those values in a `.env` file at the repository root:
@@ -24,6 +26,8 @@ You can also put those values in a `.env` file at the repository root:
 GITHUB_TOKEN="github_pat_or_app_token"
 GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
 GOOGLE_CLOUD_LOCATION="us-central1"
+# Only needed when using --ai-provider google-ai
+GEMINI_API_KEY="gemini_api_key"
 ```
 
 The CLI automatically loads `.env` from the directory where you run `contrib-summary`. It also supports `src/contributions_summarizer/.env` for local development, but the repository root is the preferred location.
@@ -56,7 +60,7 @@ Do not commit tokens. Keep them in your shell environment, password manager, or 
 
 ## Vertex AI Gemini
 
-Summaries use Gemini through Google Vertex AI, not an AI Studio API key. The tool uses Application Default Credentials and the `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` environment variables.
+By default, summaries use Gemini through Google Vertex AI. The tool uses Application Default Credentials and the `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` environment variables.
 
 One-time setup:
 
@@ -88,6 +92,22 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 
 For non-local usage, use a service account with permission to call Vertex AI and set `GOOGLE_APPLICATION_CREDENTIALS` to the service account JSON path.
 
+## Google AI Gemini
+
+You can also use Gemini through the Google AI API with an API key:
+
+```bash
+export GEMINI_API_KEY="gemini_api_key"
+contrib-summary owner/repo --user github-login --ai-provider google-ai
+```
+
+Provider selection is explicit:
+
+- `--ai-provider vertex-ai`: default, uses Google Cloud Vertex AI with Application Default Credentials.
+- `--ai-provider google-ai`: uses `GEMINI_API_KEY`.
+
+The provider boundary is isolated behind the text generator interface, so additional providers such as OpenAI or Claude can be added later without changing the GitHub ingestion, grouping, or report rendering pipeline.
+
 ## Usage
 
 ```bash
@@ -100,6 +120,7 @@ Useful options:
 contrib-summary owner/repo --user github-login --json-out summary.json
 contrib-summary owner/repo --user github-login --include-open
 contrib-summary owner/repo --user github-login --max-prs 50
+contrib-summary owner/repo --user github-login --ai-provider google-ai
 contrib-summary owner/repo --user github-login --no-ai
 ```
 

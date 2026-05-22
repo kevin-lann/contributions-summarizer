@@ -10,8 +10,7 @@ from pathlib import Path
 from contributions_summarizer.cluster import cluster_pull_requests
 from contributions_summarizer.gemini import (
     ContributionSummarizer,
-    GeminiConfig,
-    GeminiTextGenerator,
+    create_text_generator,
 )
 from contributions_summarizer.github_client import GitHubClient, GitHubConfig
 from contributions_summarizer.models import ClusterSummary, ContributionCluster, PullRequest
@@ -39,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         clusters, summaries = group_and_summarize(
             pull_requests,
             no_ai=args.no_ai,
+            ai_provider=args.ai_provider,
             model=args.model,
             similarity_threshold=args.similarity_threshold,
         )
@@ -77,9 +77,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Similarity threshold for deterministic clustering in --no-ai mode.",
     )
     parser.add_argument(
+        "--ai-provider",
+        choices=("vertex-ai", "google-ai"),
+        default="vertex-ai",
+        help="AI provider for Gemini calls. Use vertex-ai for Google Cloud Vertex AI or google-ai for API-key auth.",
+    )
+    parser.add_argument(
         "--model",
         default="gemini-2.5-flash",
-        help="Vertex AI Gemini model to use for summaries.",
+        help="Gemini model to use for grouping and summaries.",
     )
     parser.add_argument(
         "--no-ai",
@@ -92,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
 def group_and_summarize(
     pull_requests: list[PullRequest],
     no_ai: bool,
+    ai_provider: str,
     model: str,
     similarity_threshold: float,
 ) -> tuple[list[ContributionCluster], list[ClusterSummary]]:
@@ -101,7 +108,7 @@ def group_and_summarize(
             similarity_threshold=similarity_threshold,
         )
         return clusters, []
-    generator = GeminiTextGenerator(GeminiConfig.from_env(model=model))
+    generator = create_text_generator(provider=ai_provider, model=model)
     summarizer = ContributionSummarizer(generator)
     clusters = summarizer.group_pull_requests(pull_requests)
     summaries = summarizer.summarize(clusters)

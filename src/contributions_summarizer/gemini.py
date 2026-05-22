@@ -18,6 +18,10 @@ class GeminiError(RuntimeError):
     pass
 
 
+class UnsupportedProviderError(GeminiError):
+    pass
+
+
 class TextGenerator(Protocol):
     def generate(self, prompt: str, response_schema: dict | None = None) -> str:
         pass
@@ -73,20 +77,34 @@ SUMMARY_RESPONSE_SCHEMA = {
 
 @dataclass(frozen=True)
 class GeminiConfig:
-    project: str
+    provider: str
     location: str = "us-central1"
     model: str = "gemini-2.5-flash"
+    project: str | None = None
+    api_key: str | None = None
 
     @classmethod
-    def from_env(cls, model: str = "gemini-2.5-flash") -> "GeminiConfig":
-        project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        if not project:
-            raise GeminiError("GOOGLE_CLOUD_PROJECT is required for Vertex AI.")
-        return cls(
-            project=project,
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            model=model,
-        )
+    def from_env(
+        cls,
+        model: str = "gemini-2.5-flash",
+        provider: str = "vertex-ai",
+    ) -> "GeminiConfig":
+        if provider == "vertex-ai":
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+            if not project:
+                raise GeminiError("GOOGLE_CLOUD_PROJECT is required for Vertex AI.")
+            return cls(
+                provider=provider,
+                project=project,
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+                model=model,
+            )
+        if provider == "google-ai":
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise GeminiError("GEMINI_API_KEY is required for Google AI.")
+            return cls(provider=provider, api_key=api_key, model=model)
+        raise UnsupportedProviderError(f"Unsupported AI provider: {provider}")
 
 
 @dataclass(frozen=True)
@@ -166,11 +184,19 @@ class GeminiTextGenerator:
     def __init__(self, config: GeminiConfig) -> None:
         self.config = config
         self.token_totals = TokenUsageTotals()
-        self.client = genai.Client(
-            vertexai=True,
-            project=config.project,
-            location=config.location,
-        )
+        self.client = self._build_client(config)
+
+    @staticmethod
+    def _build_client(config: GeminiConfig) -> genai.Client:
+        if config.provider == "vertex-ai":
+            return genai.Client(
+                vertexai=True,
+                project=config.project,
+                location=config.location,
+            )
+        if config.provider == "google-ai":
+            return genai.Client(api_key=config.api_key)
+        raise UnsupportedProviderError(f"Unsupported AI provider: {config.provider}")
 
     def generate(self, prompt: str, response_schema: dict | None = None) -> str:
         response = self.client.models.generate_content(
@@ -391,6 +417,10 @@ def pricing_for_model(model: str) -> ModelPricing | None:
         if normalized.startswith(model_prefix):
             return pricing
     return None
+
+
+def create_text_generator(provider: str, model: str) -> GeminiTextGenerator:
+    return GeminiTextGenerator(GeminiConfig.from_env(model=model, provider=provider))
 
 
 def metadata_value(metadata: Any, key: str) -> int | None:
