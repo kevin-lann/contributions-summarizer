@@ -1,0 +1,7 @@
+/venv
+.env
+.pytest_cache
+/outputs
+__pycache__/*
+src/contributions_summarizer/__pycache__/*
+tests/__pycache__/*
